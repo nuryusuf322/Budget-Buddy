@@ -1,0 +1,11 @@
+[
+    {
+      "category_id": "cat123",
+      "user_id": "user123",
+      "name": "Groceries",
+      "type": "expense",
+      "color": "#4CAF50",
+      "icon": "shopping-cart",
+      "monthly_limit": 600
+    }
+  ]

@@ -1,0 +1,12 @@
+[
+    {
+      "goal_id": "goal123",
+      "user_id": "user123",
+      "goal_name": "Emergency Fund",
+      "target_amount": 5000,
+      "current_amount": 2500,
+      "target_date": "2024-12-31",
+      "priority": "high",
+      "description": "3 months of living expenses"
+    }
+  ]

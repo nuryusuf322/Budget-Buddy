@@ -1,0 +1,12 @@
+[
+    {
+      "transaction_id": "trans123",
+      "user_id": "user123",
+      "amount": 150.75,
+      "type": "expense",
+      "category": "groceries",
+      "description": "Weekly grocery shopping",
+      "date": "2024-09-15",
+      "payment_method": "credit_card"
+    }
+  ]

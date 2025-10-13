@@ -1,0 +1,12 @@
+[
+  {
+    "user_id": "user123",
+    "username": "john_doe",
+    "email": "john@email.com",
+    "password": "$2a$10$exampleHashedPassword123",
+    "currency": "USD",
+    "monthly_income": 4500,
+    "financial_goals": ["emergency_fund", "vacation"],
+    "created_at": "2024-09-20T10:30:00Z"
+  }
+]

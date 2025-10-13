@@ -1,0 +1,11 @@
+[
+    {
+      "budget_id": "budget123",
+      "user_id": "user123",
+      "category": "groceries",
+      "monthly_limit": 600,
+      "current_spent": 150.75,
+      "month_year": "09-2024",
+      "currency": "USD"
+    }
+  ]
