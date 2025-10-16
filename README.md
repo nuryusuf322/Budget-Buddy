@@ -18,12 +18,10 @@
 #### 2. Modular Architecture Implemented
 modules/
 ├── auth/ - User authentication & profiles
-├── transactions/ - Income/expense management
 ├── budgets/ - Budget tracking
-├── goals/ - Savings goals
 └── categories/ - Transaction categories
-
-text
+├── goals/ - Savings goals
+├── transactions/ - Income/expense management
 
 #### 3. Application-Level Middlewares
 - `express.json()` - JSON body parsing
@@ -102,8 +100,8 @@ All routes tested and verified with:
 - ✅ Proper HTTP status codes
 
 ### Team Contributions:
-- **Abdallah Aidaruse**: [List your specific contributions]
-- **Yusuf Nur**: [List Yusuf's specific contributions]
+- **Abdallah Aidaruse**: Led Phase 2 implementation, set up modular architecture, implemented auth, transactions, budgets, goals, and categories modules, configured middleware, and handled API routing.
+- **Yusuf Nur**: Collaborated on project planning, assisted with data structure design, and contributed to testing and validation.
 
 ---
 
