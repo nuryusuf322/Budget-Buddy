@@ -1,172 +1,110 @@
 const express = require('express');
-const { validationResult } = require('express-validator');
-
-const {
-  getAllBudgets,
-  getBudgetById,
-  addNewBudget,
-  updateExistingBudget,
-  deleteBudget
-} = require('./budgets.model');
-
-const {
-  createBudgetValidation,
-  updateBudgetValidation,
-  budgetIdValidation
-} = require('./budgets.middleware');
+const { body, validationResult } = require('express-validator');
+const Budget = require('./budgets.model');
+const { v4: uuidv4 } = require('uuid');
+const { search } = require('../auth/auth.Routes');
 
 const router = express.Router();
 
-// GET /api/budgets - Get all budgets
 router.get('/', async (req, res) => {
-  try {
-    const filters = req.query;
-    const budgets = await getAllBudgets(filters);
-    
-    res.status(200).json({
-      success: true,
-      data: budgets,
-      count: budgets.length
-    });
-  } catch (error) {
-    console.error('Error getting budgets:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get budgets'
-    });
-  }
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            sortBy = 'month_year',
+            sortOrder = 'desc',
+            search,
+            user_id,
+            category
+        } = req.query;
+
+    const filter = {};
+    if (user_id) filter.user_id = user_id;
+    if (category) filter.category = category;
+    if (search) {
+      filter.$or = [
+        { category: { $regex: search, $options: 'i' } },
+        { month_year: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+        const budgets = await Budget.find(filter)
+            .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await Budget.countDocuments(filter);
+
+        res.json({
+            success: true,
+            data: budgets,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    }
 });
 
-// GET /api/budgets/:id - Get budget by ID
-router.get('/:id', budgetIdValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
+router.post('/', [
+    body('user_id').notEmpty().withMessage('user_id is required'),
+    body('category').notEmpty().withMessage('category is required'),
+    body('monthly_limit').isFloat({ min: 0 }).withMessage('monthly_limit must be a non-negative number'),
+    body('month_year').notEmpty().withMessage('month_year is required'),
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+        const budgetData = {
+            ...req.body,
+            budget_id: uuidv4()
+        };
 
-    const budget = await getBudgetById(req.params.id);
-    
-    if (!budget) {
-      return res.status(404).json({
-        success: false,
-        message: 'Budget not found'
-      });
+        const budget = new Budget(budgetData);
+        await budget.save();
+        res.status(201).json({ success: true, message: 'Budget created sucessfully', data: budget });
     }
-    
-    res.status(200).json({
-      success: true,
-      data: budget
-    });
-  } catch (error) {
-    console.error('Error getting budget:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get budget'
-    });
-  }
+    catch (error) {
+        res.status(500).json({ success: false, message: 'Error creating budget', error: error.message });
+    }
 });
 
-// POST /api/budgets - Create new budget
-router.post('/', createBudgetValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
+router.put('/:id', async (req, res) => {
+    try {
+        const budget = await Budget.findOneAndUpdate(
+            { budget_id: req.params.id },
+            req.body,
+            { new: true }
+        );
 
-    const newBudget = await addNewBudget(req.body);
-    
-    res.status(201).json({
-      success: true,
-      message: 'Budget created successfully',
-      data: newBudget
-    });
-  } catch (error) {
-    console.error('Error creating budget:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create budget'
-    });
-  }
+        if (!budget) {
+            return res.status(404).json({ success: false, message: 'Budget not found' });
+        }
+
+        res.json({ success: true, message: 'Budget updated successfully', data: budget });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error updating budget', error: error.message });
+    }
 });
 
-// PUT /api/budgets/:id - Update budget
-router.put('/:id', updateBudgetValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
+router.delete('/:id', async (req, res) => {
+    try {
+        const budget = await Budget.findOneAndDelete({ budget_id: req.params.id });
+        if (!budget) {
+            return res.status(404).json({ success: false, message: 'Budget not found' });
+        }
+        res.json({ success: true, message: 'Budget deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error deleting budget', error: error.message });
     }
-
-    const updatedBudget = await updateExistingBudget(req.params.id, req.body);
-    
-    if (!updatedBudget) {
-      return res.status(404).json({
-        success: false,
-        message: 'Budget not found'
-      });
-    }
-    
-    res.status(200).json({
-      success: true,
-      message: 'Budget updated successfully',
-      data: updatedBudget
-    });
-  } catch (error) {
-    console.error('Error updating budget:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update budget'
-    });
-  }
-});
-
-// DELETE /api/budgets/:id - Delete budget
-router.delete('/:id', budgetIdValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
-
-    const deletedBudget = await deleteBudget(req.params.id);
-    
-    if (!deletedBudget) {
-      return res.status(404).json({
-        success: false,
-        message: 'Budget not found'
-      });
-    }
-    
-    res.status(200).json({
-      success: true,
-      message: 'Budget deleted successfully',
-      data: deletedBudget
-    });
-  } catch (error) {
-    console.error('Error deleting budget:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete budget'
-    });
-  }
 });
 
 module.exports = router;

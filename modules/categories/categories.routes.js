@@ -1,55 +1,62 @@
 const express = require('express');
-const { validationResult } = require('express-validator');
-
-const {
-  getAllCategories,
-  getCategoryById,
-  addNewCategory,
-  updateExistingCategory,
-  deleteCategory
-} = require('./categories.model');
-
-const {
-  createCategoryValidation,
-  updateCategoryValidation,
-  categoryIdValidation
-} = require('./categories.middleware');
+const { body, validationResult } = require('express-validator');
+const Category = require('./categories.model');
+const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-// GET /api/categories - Get all categories
+// GET all categories with search, sort, pagination
 router.get('/', async (req, res) => {
   try {
-    const filters = req.query;
-    const categories = await getAllCategories(filters);
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = 'name',
+      sortOrder = 'asc',
+      search,
+      user_id,
+      type
+    } = req.query;
+
+    const filter = {};
+    if (user_id) filter.user_id = user_id;
+    if (type) filter.type = type;
+    if (search) {
+      filter.name = { $regex: search, $options: 'i' };
+    }
+
+    const skip = (page - 1) * limit;
     
-    res.status(200).json({
+    const categories = await Category.find(filter)
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    const total = await Category.countDocuments(filter);
+    
+    res.json({
       success: true,
       data: categories,
-      count: categories.length
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum)
+      }
     });
   } catch (error) {
-    console.error('Error getting categories:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get categories'
+      message: 'Error fetching categories',
+      error: error.message
     });
   }
 });
 
-// GET /api/categories/:id - Get category by ID
-router.get('/:id', categoryIdValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
 
-    const category = await getCategoryById(req.params.id);
+router.get('/:id', async (req, res) => {
+  try {
+    const category = await Category.findOne({ category_id: req.params.id });
     
     if (!category) {
       return res.status(404).json({
@@ -58,21 +65,25 @@ router.get('/:id', categoryIdValidation, async (req, res) => {
       });
     }
     
-    res.status(200).json({
+    res.json({
       success: true,
       data: category
     });
   } catch (error) {
-    console.error('Error getting category:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get category'
+      message: 'Error fetching category',
+      error: error.message
     });
   }
 });
 
-// POST /api/categories - Create new category
-router.post('/', createCategoryValidation, async (req, res) => {
+// CREATE new category
+router.post('/', [
+  body('user_id').notEmpty(),
+  body('name').notEmpty(),
+  body('type').isIn(['income', 'expense'])
+], async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -83,88 +94,80 @@ router.post('/', createCategoryValidation, async (req, res) => {
       });
     }
 
-    const newCategory = await addNewCategory(req.body);
-    
+    const categoryData = {
+      ...req.body,
+      category_id: uuidv4()
+    };
+
+    const category = new Category(categoryData);
+    await category.save();
+
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
-      data: newCategory
+      data: category
     });
   } catch (error) {
-    console.error('Error creating category:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create category'
+      message: 'Error creating category',
+      error: error.message
     });
   }
 });
 
-// PUT /api/categories/:id - Update category
-router.put('/:id', updateCategoryValidation, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
+    const category = await Category.findOneAndUpdate(
+      { category_id: req.params.id },
+      req.body,
+      { new: true, runValidators: true }
+    );
 
-    const updatedCategory = await updateExistingCategory(req.params.id, req.body);
-    
-    if (!updatedCategory) {
+    if (!category) {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
       });
     }
-    
-    res.status(200).json({
+
+    res.json({
       success: true,
       message: 'Category updated successfully',
-      data: updatedCategory
+      data: category
     });
   } catch (error) {
-    console.error('Error updating category:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update category'
+      message: 'Error updating category',
+      error: error.message
     });
   }
 });
 
-// DELETE /api/categories/:id - Delete category
-router.delete('/:id', categoryIdValidation, async (req, res) => {
+// DELETE category
+router.delete('/:id', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
+    const category = await Category.findOneAndDelete({ 
+      category_id: req.params.id 
+    });
 
-    const deletedCategory = await deleteCategory(req.params.id);
-    
-    if (!deletedCategory) {
+    if (!category) {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
       });
     }
-    
-    res.status(200).json({
+
+    res.json({
       success: true,
-      message: 'Category deleted successfully',
-      data: deletedCategory
+      message: 'Category deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting category:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete category'
+      message: 'Error deleting category',
+      error: error.message
     });
   }
 });

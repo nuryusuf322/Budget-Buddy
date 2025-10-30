@@ -1,109 +1,46 @@
-const fs = require('fs').promises;
-const path = require('path');
+const mongoose = require('mongoose');
 
-const dataPath = path.join(__dirname, '../../data/goals.json');
-
-const readGoals = async () => {
-  try {
-    const data = await fs.readFile(dataPath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
+const goalSchema = new mongoose.Schema({
+  goal_id: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  user_id: {
+    type: String,
+    required: true,
+    index: true
+  },
+  goal_name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  target_amount: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  current_amount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  target_date: {
+    type: Date,
+    required: true
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium'
+  },
+  description: {
+    type: String,
+    trim: true
   }
-};
+}, {
+  timestamps: true
+});
 
-const writeGoals = async (goals) => {
-  try {
-    await fs.writeFile(dataPath, JSON.stringify(goals, null, 2));
-  } catch (error) {
-    throw new Error('Error saving goals');
-  }
-};
-
-const getAllGoals = async (filters = {}) => {
-  try {
-    let goals = await readGoals();
-    
-    if (filters.user_id) {
-      goals = goals.filter(g => g.user_id === filters.user_id);
-    }
-    if (filters.priority) {
-      goals = goals.filter(g => g.priority === filters.priority);
-    }
-    
-    return goals;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const getGoalById = async (id) => {
-  try {
-    const goals = await readGoals();
-    return goals.find(g => g.goal_id === id) || null;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const addNewGoal = async (goalData) => {
-  try {
-    const goals = await readGoals();
-    const newId = 'goal' + Date.now();
-    
-    const newGoal = {
-      goal_id: newId,
-      ...goalData,
-      current_amount: goalData.current_amount || 0
-    };
-    
-    goals.push(newGoal);
-    await writeGoals(goals);
-    return newGoal;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const updateExistingGoal = async (id, updateData) => {
-  try {
-    const goals = await readGoals();
-    const goalIndex = goals.findIndex(g => g.goal_id === id);
-    
-    if (goalIndex === -1) return null;
-    
-    goals[goalIndex] = {
-      ...goals[goalIndex],
-      ...updateData,
-      goal_id: id
-    };
-    
-    await writeGoals(goals);
-    return goals[goalIndex];
-  } catch (error) {
-    throw error;
-  }
-};
-
-const deleteGoal = async (id) => {
-  try {
-    const goals = await readGoals();
-    const goalIndex = goals.findIndex(g => g.goal_id === id);
-    
-    if (goalIndex === -1) return null;
-    
-    const deletedGoal = goals.splice(goalIndex, 1)[0];
-    await writeGoals(goals);
-    return deletedGoal;
-  } catch (error) {
-    throw error;
-  }
-};
-
-module.exports = {
-  getAllGoals,
-  getGoalById,
-  addNewGoal,
-  updateExistingGoal,
-  deleteGoal
-};
+module.exports = mongoose.model('Goal', goalSchema);

@@ -1,157 +1,118 @@
 const express = require('express');
-const { validationResult } = require('express-validator');
-
-// Import model functions
-const {
-  getAllUsers,
-  getUserById,
-  registerUser,
-  loginUser,
-  updateUserProfile
-} = require('./auth.model');
-
-// Import validation rules
-const {
-  registerValidation,
-  loginValidation,
-  updateProfileValidation,
-  userIdValidation
-} = require('./auth.Validation');
-
+const { body, validationResult } = require('express-validator');
+const User = require('./auth.model');
+const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
-// GET /api/auth/users - Get all users
 router.get('/users', async (req, res) => {
-  try {
-    const users = await getAllUsers();
-    
-    res.status(200).json({
-      success: true,
-      data: users,
-      count: users.length
-    });
-  } catch (error) {
-    console.error('Error getting users:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get users'
-    });
-  }
+    try {
+        const users = await User.find({}, { password: 0 });
+        res.json({ success: true, data: users });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+    }
 });
 
-// GET /api/auth/profile/:id - Get user profile
-router.get('/profile/:id', userIdValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
+router.get('/users/:id', async (req, res) => {
+    try {
+        const user = await User.findOne({ user_id: req.params.id }, { password: 0 });
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, data: user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
     }
-
-    const user = await getUserById(req.params.id);
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-    
-    res.status(200).json({
-      success: true,
-      data: user
-    });
-  } catch (error) {
-    console.error('Error getting user profile:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get user profile'
-    });
-  }
 });
 
-// POST /api/auth/register - Register new user
-router.post('/register', registerValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
+router.post('/register', [
+    body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters long'),
+    body('email').isEmail().withMessage('Please provide a valid email address'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+        
+        const existingUser = await User.findOne({ $or: [{ username: req.body.username }, { email: req.body.email }] });
+        if (existingUser) {
+            return res.status(400).json({ success: false, message: 'Username or email already exists' });
+        }
 
-    const newUser = await registerUser(req.body);
-    
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      data: newUser
-    });
-  } catch (error) {
-    console.error('Error registering user:', error);
-    
-    if (error.message === 'User with this email already exists') {
-      return res.status(409).json({
-        success: false,
-        message: error.message
-      });
+        const userData = {
+          ...req.body,
+          user_id: uuidv4()
+        };
+
+        const user = new User(userData);
+        await user.save();
+
+        const userResponse = user.toObject();
+        delete userResponse.password;
+
+        res.status(201).json({ success: true, data: userResponse });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
     }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Failed to register user'
-    });
-  }
 });
 
-// POST /api/auth/login - User login
-router.post('/login', loginValidation, async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation errors',
-        errors: errors.array()
-      });
-    }
+router.post('/login', [
+    body('email').isEmail().withMessage('Please provide a valid email address'),
+    body('password').exists().withMessage('Password is required'),
+], async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
 
-    const { email, password } = req.body;
-    const user = await loginUser(email, password);
-    
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      data: user
-    });
-  } catch (error) {
-    console.error('Error logging in:', error);
-    
-    if (error.message === 'Invalid email or password') {
-      return res.status(401).json({
-        success: false,
-        message: error.message
-      });
+        if (user.password !== password) {
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
+        }
+        const userResponse = user.toObject();
+        delete userResponse.password;
+
+        res.json({ success: true, message: 'Login successful', data: userResponse });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
     }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Failed to login'
-    });
-  }
 });
 
-// Test route
-router.get('/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Auth module is working!'
-  });
+router.put('/users/:id', async (req, res) => {
+    try {
+        const user = await User.findOneAndUpdate(
+            { user_id: req.params.id },
+            req.body,
+            { new: true, fields: { password: 0 } }
+        );
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        res.json({ success: true, message: 'User updated successfully', data: user });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, message: 'Error updating user', error: error.message });
+    }
+});
+router.delete('/users/:id', async (req, res) => {
+    try {
+        const user = await User.findOneAndDelete({ user_id: req.params.id }); 
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        res.json({ success: true, message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error deleting user', error: error.message });
+    }
 });
 
 module.exports = router;
