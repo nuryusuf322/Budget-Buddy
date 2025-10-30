@@ -5,7 +5,6 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-// GET all transactions with search, sort, pagination
 router.get('/', async (req, res) => {
   try {
     const {
@@ -65,7 +64,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET transaction by ID
 router.get('/:id', async (req, res) => {
   try {
     const transaction = await Transaction.findOne({ transaction_id: req.params.id });
@@ -90,7 +88,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// CREATE new transaction
 router.post('/', [
   body('user_id').notEmpty(),
   body('amount').isNumeric(),
@@ -130,7 +127,6 @@ router.post('/', [
   }
 });
 
-// UPDATE transaction
 router.put('/:id', async (req, res) => {
   try {
     const transaction = await Transaction.findOneAndUpdate(
@@ -160,7 +156,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE transaction
 router.delete('/:id', async (req, res) => {
   try {
     const transaction = await Transaction.findOneAndDelete({ 

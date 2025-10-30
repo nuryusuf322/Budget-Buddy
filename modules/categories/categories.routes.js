@@ -5,7 +5,6 @@ const { v4: uuidv4 } = require('uuid');
 
 const router = express.Router();
 
-// GET all categories with search, sort, pagination
 router.get('/', async (req, res) => {
   try {
     const {
@@ -78,7 +77,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// CREATE new category
 router.post('/', [
   body('user_id').notEmpty(),
   body('name').notEmpty(),
@@ -145,7 +143,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE category
 router.delete('/:id', async (req, res) => {
   try {
     const category = await Category.findOneAndDelete({ 

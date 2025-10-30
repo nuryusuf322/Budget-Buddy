@@ -1,6 +1,5 @@
 const { body, param } = require('express-validator');
 
-// Validation for user registration
 const registerValidation = [
   body('username')
     .notEmpty().withMessage('Username is required')
@@ -22,7 +21,6 @@ const registerValidation = [
     .isFloat({ min: 0 }).withMessage('Monthly income must be positive')
 ];
 
-// Validation for user login
 const loginValidation = [
   body('email')
     .isEmail().withMessage('Valid email is required')
@@ -32,7 +30,6 @@ const loginValidation = [
     .notEmpty().withMessage('Password is required')
 ];
 
-// Validation for updating profile
 const updateProfileValidation = [
   param('id').notEmpty().withMessage('User ID is required'),
   
@@ -53,7 +50,6 @@ const updateProfileValidation = [
     .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ];
 
-// Validation for user ID parameter
 const userIdValidation = [
   param('id').notEmpty().withMessage('User ID is required')
 ];

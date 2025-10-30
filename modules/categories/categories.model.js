@@ -34,7 +34,7 @@ const categorySchema = new mongoose.Schema({
     default: 0
   }
 }, {
-  timestamps: true  // ← This should be an object, not a boolean
+  timestamps: true  
 });
 
 module.exports = mongoose.model('Category', categorySchema);
