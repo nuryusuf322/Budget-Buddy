@@ -2,14 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./shared/middlewares/connect-db');
-const authRoutes = require('./modules/auth/auth.Routes');
+const authRoutes = require('./modules/auth/auth.routes');
 const transactionRoutes = require('./modules/transactions/transaction.routes'); 
 const budgetRoutes = require('./modules/budgets/budgets.routes');
 const goalRoutes = require('./modules/goals/goals.routes');
 const categoryRoutes = require('./modules/categories/categories.routes');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 connectDB();
 
@@ -23,8 +23,7 @@ app.use('/api/budgets', budgetRoutes);
 app.use('/api/goals', goalRoutes);
 
 app.get('/', (req, res) => {
-  res.send('Welcome to Budget Buddy API');
-  res.json({ message: 'Budget Buddy API is working!',timestamp: new Date().toISOString(), database: 'MongoDB connected' });
+  res.json({ message: 'Budget Buddy API is working!', timestamp: new Date().toISOString(), database: 'MongoDB connected' });
 });
 
 app.get('/api/test', (req, res) => {
@@ -37,17 +36,25 @@ app.use('*', (req, res) => {
 
 app.use((error, req, res, next) => {
   console.error('Error:', error);
+  // Check if response has already been sent
+  if (res.headersSent) {
+    return next(error);
+  }
   res.status(500).json({ success: false, message: 'Internal Server Error', error: process.env.NODE_ENV === 'development' ? error.message : {}});
 });
 
 app.listen(PORT, () => {
-   console.log(`🚀 Budget Buddy server running on http://localhost:${PORT}`);
+  console.log(`🚀 Budget Buddy server running on http://localhost:${PORT}`);
   console.log(`📊 Database: MongoDB Atlas`);
-  console.log(`✅ Test the API: http://localhost:3000/api/test`);
-  console.log(`✅ Auth routes: http://localhost:3000/api/auth/users`);
-  console.log(`✅ Transaction routes: http://localhost:3000/api/transactions`);
-  console.log(`✅ Budget routes: http://localhost:3000/api/budgets`);
-  console.log(`✅ Goal routes: http://localhost:3000/api/goals`);
-  console.log(`✅ Category routes: http://localhost:3000/api/categories`);
+  console.log(`\n📝 API Endpoints:`);
+  console.log(`   ✅ Test the API: http://localhost:${PORT}/api/test`);
+  console.log(`   ✅ Auth routes: http://localhost:${PORT}/api/auth/users`);
+  console.log(`   ✅ Transaction routes: http://localhost:${PORT}/api/transactions`);
+  console.log(`   ✅ Budget routes: http://localhost:${PORT}/api/budgets`);
+  console.log(`   ✅ Goal routes: http://localhost:${PORT}/api/goals`);
+  console.log(`   ✅ Category routes: http://localhost:${PORT}/api/categories`);
+  console.log(`\n🌐 Frontend: Start the React app in the 'frontend' directory`);
+  console.log(`   Run: cd frontend && npm start`);
+  console.log(`   Frontend will run on http://localhost:3000`);
 });
 
