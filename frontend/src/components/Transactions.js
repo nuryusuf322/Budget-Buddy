@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { transactionsAPI } from '../services/api';
-import { validateTransaction } from '../utils/validation';
 import Message from './Message';
 import TransactionForm from './TransactionForm';
 import './Transactions.css';
@@ -27,13 +26,7 @@ const Transactions = () => {
     pages: 0,
   });
 
-  useEffect(() => {
-    if (user) {
-      fetchTransactions();
-    }
-  }, [user, filters, pagination.page]);
-
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -69,7 +62,13 @@ const Transactions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, filters, pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    if (user) {
+      fetchTransactions();
+    }
+  }, [user, fetchTransactions]);
 
   const handleCreate = async (transactionData) => {
     try {
@@ -340,5 +339,8 @@ const Transactions = () => {
 };
 
 export default Transactions;
+
+
+
 
 
