@@ -150,7 +150,12 @@
 .btn-sm {
   padding: 4px 8px;
   font-size: 12px;
-  margin-right: 5px;
+}
+
+.transactions-table td:last-child {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .btn-edit {
@@ -190,5 +195,148 @@
   padding: 40px;
   color: #666;
   font-size: 18px;
+}
+
+.budget-warnings-banner {
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 15px 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.budget-warnings-banner h3 {
+  margin: 0 0 10px 0;
+  color: #856404;
+  font-size: 18px;
+}
+
+.warning-item {
+  padding: 8px 0;
+  color: #856404;
+  font-size: 14px;
+  border-bottom: 1px solid #ffeaa7;
+}
+
+.warning-item:last-child {
+  border-bottom: none;
+}
+
+.warning-item strong {
+  color: #e74c3c;
+}
+
+/* Monthly Spending Stats Section */
+.monthly-stats-section {
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+}
+
+.monthly-stats-section h2 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 22px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.stat-card {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card-highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-left: 4px solid #764ba2;
+}
+
+.stat-card-highlight .stat-label,
+.stat-card-highlight .stat-value,
+.stat-card-highlight .stat-subtext {
+  color: white;
+}
+
+.stat-card-positive {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  border-left: 4px solid #20c997;
+}
+
+.stat-card-positive .stat-label,
+.stat-card-positive .stat-value,
+.stat-card-positive .stat-subtext {
+  color: white;
+}
+
+.stat-card-negative {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  border-left: 4px solid #c82333;
+}
+
+.stat-card-negative .stat-label,
+.stat-card-negative .stat-value,
+.stat-card-negative .stat-subtext {
+  color: white;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.stat-expense {
+  color: #dc3545;
+}
+
+.stat-income {
+  color: #28a745;
+}
+
+.stat-projected {
+  color: white;
+}
+
+.stat-positive {
+  color: white;
+}
+
+.stat-negative {
+  color: white;
+}
+
+.stat-subtext {
+  font-size: 12px;
+  color: #999;
+  margin-top: 5px;
+}
+
+.stat-card-highlight .stat-subtext {
+  color: rgba(255, 255, 255, 0.9);
 }
 

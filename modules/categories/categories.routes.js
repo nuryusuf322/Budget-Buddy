@@ -2,10 +2,12 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Category = require('./categories.model');
 const { v4: uuidv4 } = require('uuid');
+const { authenticate, authorize } = require('../../shared/middlewares/auth');
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+// Protected route - requires authentication
+router.get('/', authenticate, async (req, res) => {
   try {
     const {
       page = 1,
@@ -18,18 +20,25 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const filter = {};
-    if (user_id) filter.user_id = user_id;
+    // Users can only see their own categories, admins/managers can see all
+    if (['admin', 'manager'].includes(req.user.role)) {
+      if (user_id) filter.user_id = user_id;
+    } else {
+      filter.user_id = req.user.user_id; // Regular users can only see their own
+    }
     if (type) filter.type = type;
     if (search) {
       filter.name = { $regex: search, $options: 'i' };
     }
 
     const skip = (page - 1) * limit;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
     
     const categories = await Category.find(filter)
       .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum);
     
     const total = await Category.countDocuments(filter);
     
@@ -53,7 +62,8 @@ router.get('/', async (req, res) => {
 });
 
 
-router.get('/:id', async (req, res) => {
+// Protected route - requires authentication
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const category = await Category.findOne({ category_id: req.params.id });
     
@@ -61,6 +71,14 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
+      });
+    }
+
+    // Users can only access their own categories, admins/managers can access any
+    if (!['admin', 'manager'].includes(req.user.role) && category.user_id !== req.user.user_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only access your own categories.'
       });
     }
     
@@ -77,8 +95,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.post('/', [
-  body('user_id').notEmpty(),
+// Protected route - requires authentication
+router.post('/', authenticate, [
   body('name').notEmpty(),
   body('type').isIn(['income', 'expense'])
 ], async (req, res) => {
@@ -94,6 +112,7 @@ router.post('/', [
 
     const categoryData = {
       ...req.body,
+      user_id: req.user.user_id, // Set from authenticated user
       category_id: uuidv4()
     };
 
@@ -114,20 +133,37 @@ router.post('/', [
   }
 });
 
-router.put('/:id', async (req, res) => {
+// Protected route - requires authentication
+router.put('/:id', authenticate, async (req, res) => {
   try {
-    const category = await Category.findOneAndUpdate(
-      { category_id: req.params.id },
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!category) {
+    const existingCategory = await Category.findOne({ category_id: req.params.id });
+    
+    if (!existingCategory) {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
       });
     }
+
+    // Users can only update their own categories, admins/managers can update any
+    if (!['admin', 'manager'].includes(req.user.role) && existingCategory.user_id !== req.user.user_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only update your own categories.'
+      });
+    }
+
+    // Prevent users from changing user_id
+    const updateData = { ...req.body };
+    if (!['admin', 'manager'].includes(req.user.role)) {
+      delete updateData.user_id;
+    }
+
+    const category = await Category.findOneAndUpdate(
+      { category_id: req.params.id },
+      updateData,
+      { new: true, runValidators: true }
+    );
 
     res.json({
       success: true,
@@ -143,9 +179,10 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+// Protected route - requires authentication
+router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const category = await Category.findOneAndDelete({ 
+    const category = await Category.findOne({ 
       category_id: req.params.id 
     });
 
@@ -155,6 +192,16 @@ router.delete('/:id', async (req, res) => {
         message: 'Category not found'
       });
     }
+
+    // Users can only delete their own categories, admins/managers can delete any
+    if (!['admin', 'manager'].includes(req.user.role) && category.user_id !== req.user.user_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only delete your own categories.'
+      });
+    }
+
+    await Category.findOneAndDelete({ category_id: req.params.id });
 
     res.json({
       success: true,

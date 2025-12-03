@@ -2,10 +2,12 @@ const express = require('express');
 const {body, validationResult} = require('express-validator');
 const Goal = require('./goals.model');
 const {v4: uuidv4} = require('uuid');
+const { authenticate, authorize } = require('../../shared/middlewares/auth');
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+// Protected route - requires authentication
+router.get('/', authenticate, async (req, res) => {
   try {
     const {
       page = 1,
@@ -14,10 +16,16 @@ router.get('/', async (req, res) => {
       sortOrder = 'asc',
       search,
       user_id,
+      priority,
     } = req.query;
     
     const filter = {};
-    if (user_id) filter.user_id = user_id;
+    // Users can only see their own goals, admins/managers can see all
+    if (['admin', 'manager'].includes(req.user.role)) {
+      if (user_id) filter.user_id = user_id;
+    } else {
+      filter.user_id = req.user.user_id; // Regular users can only see their own
+    }
     if (priority) filter.priority = priority;
     if (search) {
       filter.$or = [
@@ -54,7 +62,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
+// Protected route - requires authentication
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const goal = await Goal.findOne({ goal_id: req.params.id });
     if (!goal) {
@@ -63,6 +72,15 @@ router.get('/:id', async (req, res) => {
         message: 'Goal not found',
       });
     }
+
+    // Users can only access their own goals, admins/managers can access any
+    if (!['admin', 'manager'].includes(req.user.role) && goal.user_id !== req.user.user_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only access your own goals.'
+      });
+    }
+
     res.json({
       success: true,
       data: goal,
@@ -76,8 +94,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-router.post('/',[
-  body('user_id').notEmpty().withMessage('User ID is required'),
+// Protected route - requires authentication
+router.post('/', authenticate, [
   body('goal_name').notEmpty().withMessage('Goal name is required'),
   body('target_amount').isFloat({ gt: 0 }).withMessage('Target amount must be greater than 0'),
   body('target_date').isISO8601().withMessage('Target date must be a valid date'),
@@ -90,6 +108,7 @@ router.post('/',[
 
     const goalData = {
       ...req.body,
+      user_id: req.user.user_id, // Set from authenticated user
       goal_id: uuidv4(),
     };
 
@@ -110,20 +129,37 @@ router.post('/',[
   }
 });
 
-router.put('/:id', async (req, res) => {
+// Protected route - requires authentication
+router.put('/:id', authenticate, async (req, res) => {
   try {
-    const goal = await Goal.findOneAndUpdate(
-      { goal_id: req.params.id },
-      req.body,
-      { new: true, runValidators: true }
-    );
-
-    if (!goal) {
+    const existingGoal = await Goal.findOne({ goal_id: req.params.id });
+    
+    if (!existingGoal) {
       return res.status(404).json({
         success: false,
         message: 'Goal not found',
       });
     }
+
+    // Users can only update their own goals, admins/managers can update any
+    if (!['admin', 'manager'].includes(req.user.role) && existingGoal.user_id !== req.user.user_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only update your own goals.'
+      });
+    }
+
+    // Prevent users from changing user_id
+    const updateData = { ...req.body };
+    if (!['admin', 'manager'].includes(req.user.role)) {
+      delete updateData.user_id;
+    }
+
+    const goal = await Goal.findOneAndUpdate(
+      { goal_id: req.params.id },
+      updateData,
+      { new: true, runValidators: true }
+    );
 
     res.json({
       success: true,
@@ -139,9 +175,10 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+// Protected route - requires authentication
+router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const goal = await Goal.findOneAndDelete({ goal_id: req.params.id });
+    const goal = await Goal.findOne({ goal_id: req.params.id });
 
     if (!goal) {
       return res.status(404).json({
@@ -149,6 +186,16 @@ router.delete('/:id', async (req, res) => {
         message: 'Goal not found',
       });
     }
+
+    // Users can only delete their own goals, admins/managers can delete any
+    if (!['admin', 'manager'].includes(req.user.role) && goal.user_id !== req.user.user_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only delete your own goals.'
+      });
+    }
+
+    await Goal.findOneAndDelete({ goal_id: req.params.id });
     res.json({
       success: true,
       message: 'Goal deleted successfully',

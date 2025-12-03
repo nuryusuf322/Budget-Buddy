@@ -43,12 +43,12 @@ const Register = () => {
       const result = await register(formData);
       setLoading(false);
 
-      if (result.success) {
-        setMessage({ type: 'success', text: 'Registration successful! Redirecting...' });
-        setTimeout(() => {
-          navigate('/transactions');
-        }, 1000);
-      } else {
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Registration successful! Redirecting to login...' });
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+    } else {
         setMessage({ type: 'error', text: result.message || 'Registration failed. Please check your connection and try again.' });
       }
     } catch (error) {

@@ -42,9 +42,9 @@ const Login = () => {
     setLoading(false);
 
     if (result.success) {
-      setMessage({ type: 'success', text: 'Login successful! Redirecting...' });
+      setMessage({ type: 'success', text: 'OTP sent to your email! Redirecting to verification...' });
       setTimeout(() => {
-        navigate('/transactions');
+        navigate('/verify-otp', { state: { email: result.email || formData.email } });
       }, 1000);
     } else {
       setMessage({ type: 'error', text: result.message });
@@ -99,6 +99,9 @@ const Login = () => {
 };
 
 export default Login;
+
+
+
 
 
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { transactionsAPI } from '../services/api';
+import { transactionsAPI, budgetsAPI } from '../services/api';
 import Message from './Message';
 import TransactionForm from './TransactionForm';
 import './Transactions.css';
@@ -24,6 +24,16 @@ const Transactions = () => {
     limit: 10,
     total: 0,
     pages: 0,
+  });
+  const [budgetWarnings, setBudgetWarnings] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState({
+    totalSpending: 0,
+    totalIncome: 0,
+    averageDailySpending: 0,
+    averagePerTransaction: 0,
+    transactionCount: 0,
+    netBalance: 0,
+    spendingRatio: 0,
   });
 
   const fetchTransactions = useCallback(async () => {
@@ -64,19 +74,120 @@ const Transactions = () => {
     }
   }, [user, filters, pagination.page, pagination.limit]);
 
+  const fetchBudgetWarnings = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const response = await budgetsAPI.getWarnings({ user_id: user.user_id });
+      if (response.data.success) {
+        setBudgetWarnings(response.data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch budget warnings:', error);
+    }
+  }, [user]);
+
+  const fetchMonthlyStats = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Get current month start and end dates
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+      // Fetch all transactions for the current month (no pagination)
+      const response = await transactionsAPI.getAll({
+        user_id: user.user_id,
+        startDate: startDate,
+        endDate: endDate,
+        limit: 1000, // Get all transactions for the month
+      });
+
+      if (response.data.success) {
+        const allTransactions = response.data.data;
+        const expenses = allTransactions.filter(t => t.type === 'expense');
+        const income = allTransactions.filter(t => t.type === 'income');
+
+        // Calculate totals
+        const totalSpending = expenses.reduce((sum, t) => sum + t.amount, 0);
+        const totalIncome = income.reduce((sum, t) => sum + t.amount, 0);
+        const transactionCount = expenses.length;
+
+        // Calculate averages
+        const currentDay = now.getDate();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        // Get unique days that have transactions (more realistic)
+        const transactionDays = new Set();
+        expenses.forEach(t => {
+          const date = new Date(t.date);
+          transactionDays.add(date.getUTCDate()); // Get the day of month
+        });
+        const daysWithTransactions = transactionDays.size;
+        
+        // Average spending per day that actually had transactions
+        const averageDailySpending = daysWithTransactions > 0 ? totalSpending / daysWithTransactions : 0;
+        const averagePerTransaction = transactionCount > 0 ? totalSpending / transactionCount : 0;
+        
+        // Calculate net balance (earnings vs spending)
+        const netBalance = totalIncome - totalSpending;
+        const spendingRatio = totalIncome > 0 ? (totalSpending / totalIncome) * 100 : 0;
+
+        setMonthlyStats({
+          totalSpending,
+          totalIncome,
+          averageDailySpending,
+          averagePerTransaction,
+          transactionCount,
+          netBalance,
+          spendingRatio,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch monthly stats:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       fetchTransactions();
+      fetchBudgetWarnings();
+      fetchMonthlyStats();
     }
-  }, [user, fetchTransactions]);
+  }, [user, fetchTransactions, fetchBudgetWarnings, fetchMonthlyStats]);
 
   const handleCreate = async (transactionData) => {
     try {
       const response = await transactionsAPI.create(transactionData);
       if (response.data.success) {
-        setMessage({ type: 'success', text: 'Transaction created successfully!' });
+        let messageText = 'Transaction created successfully!';
+        
+        // Check for budget warning
+        if (response.data.budgetWarning && transactionData.type === 'expense') {
+          const warning = response.data.budgetWarning;
+          
+          // Check if it's a monthly budget warning
+          if (warning.type === 'monthly') {
+            messageText = `⚠️ Your monthly expense budget has been exceeded by $${warning.exceeded_by.toFixed(2)}! Total spending: $${warning.current_spent.toFixed(2)} / Limit: $${warning.monthly_limit.toFixed(2)}`;
+            setMessage({ type: 'error', text: messageText });
+          } else if (warning.category) {
+            // Category budget warning
+            messageText = `⚠️ Transaction created, but you've exceeded your ${warning.category} budget by $${warning.exceeded_by.toFixed(2)}!`;
+            setMessage({ type: 'error', text: messageText });
+          } else {
+            setMessage({ type: 'success', text: messageText });
+          }
+        } else {
+          setMessage({ type: 'success', text: messageText });
+        }
+        
         setShowForm(false);
         fetchTransactions();
+        fetchBudgetWarnings(); // Refresh warnings after creating transaction
+        fetchMonthlyStats(); // Refresh monthly stats
       }
     } catch (error) {
       setMessage({
@@ -94,6 +205,7 @@ const Transactions = () => {
         setEditingTransaction(null);
         setShowForm(false);
         fetchTransactions();
+        fetchMonthlyStats(); // Refresh monthly stats
       }
     } catch (error) {
       setMessage({
@@ -111,8 +223,14 @@ const Transactions = () => {
     try {
       const response = await transactionsAPI.delete(id);
       if (response.data.success) {
-        setMessage({ type: 'success', text: 'Transaction deleted successfully!' });
+        // Clear any error messages
+        setMessage({ type: '', text: '' });
+        // Refresh transactions
         fetchTransactions();
+        // Refresh budget warnings to update/remove warnings
+        fetchBudgetWarnings();
+        // Refresh monthly stats
+        fetchMonthlyStats();
       }
     } catch (error) {
       setMessage({
@@ -145,7 +263,19 @@ const Transactions = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // Handle date to avoid timezone issues
+    // Extract date components from UTC date to avoid timezone conversion
+    const date = new Date(dateString);
+    
+    // Use UTC methods to get the date components, avoiding timezone shifts
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    
+    // Create a local date with the UTC date components
+    const localDate = new Date(year, month, day);
+    
+    return localDate.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -180,6 +310,64 @@ const Transactions = () => {
         message={message.text}
         onClose={() => setMessage({ type: '', text: '' })}
       />
+
+      {/* Monthly Spending Summary */}
+      <div className="monthly-stats-section">
+        <h2>📊 Monthly Spending Overview</h2>
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-label">Total Spending</div>
+            <div className="stat-value stat-expense">{formatCurrency(monthlyStats.totalSpending)}</div>
+            <div className="stat-subtext">This month</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Total Income</div>
+            <div className="stat-value stat-income">{formatCurrency(monthlyStats.totalIncome)}</div>
+            <div className="stat-subtext">This month</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Average Per Transaction</div>
+            <div className="stat-value">{formatCurrency(monthlyStats.averagePerTransaction)}</div>
+            <div className="stat-subtext">{monthlyStats.transactionCount} expense{monthlyStats.transactionCount !== 1 ? 's' : ''}</div>
+          </div>
+          <div className={`stat-card ${monthlyStats.netBalance >= 0 ? 'stat-card-positive' : 'stat-card-negative'}`}>
+            <div className="stat-label">Net Balance</div>
+            <div className={`stat-value ${monthlyStats.netBalance >= 0 ? 'stat-positive' : 'stat-negative'}`}>
+              {formatCurrency(monthlyStats.netBalance)}
+            </div>
+            <div className="stat-subtext">
+              {monthlyStats.netBalance >= 0 
+                ? `✅ Spending ${monthlyStats.spendingRatio.toFixed(1)}% of income`
+                : `⚠️ Overspending by ${formatCurrency(Math.abs(monthlyStats.netBalance))}`
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Budget Warnings Banner */}
+      {budgetWarnings.length > 0 && (
+        <div className="budget-warnings-banner">
+          <h3>⚠️ Budget Warnings</h3>
+          {budgetWarnings.map((warning, index) => (
+            <div key={warning.budget_id || `monthly-${index}`} className="warning-item">
+              {warning.type === 'monthly' ? (
+                <>
+                  <strong>Monthly Budget</strong> - Exceeded by {formatCurrency(warning.exceeded_by)} 
+                  ({warning.percentage}% of {formatCurrency(warning.monthly_limit)} limit)
+                  <br />
+                  <small>Total spending: {formatCurrency(warning.current_spent)}</small>
+                </>
+              ) : (
+                <>
+                  <strong>{warning.category}</strong> - Exceeded by {formatCurrency(warning.exceeded_by)} 
+                  ({warning.percentage}% of {formatCurrency(warning.monthly_limit)} limit)
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {showForm && (
         <TransactionForm

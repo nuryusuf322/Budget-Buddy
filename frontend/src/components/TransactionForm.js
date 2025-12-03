@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { categoriesAPI } from '../services/api';
 import { validateTransaction } from '../utils/validation';
 import './TransactionForm.css';
 
 const TransactionForm = ({ user, transaction, onSave, onCancel }) => {
+  const { user: authUser } = useAuth();
   const [formData, setFormData] = useState({
-    user_id: user?.user_id || '',
+    user_id: user?.user_id || authUser?.user_id || '',
     amount: '',
     type: 'expense',
     category: '',
@@ -13,10 +16,34 @@ const TransactionForm = ({ user, transaction, onSave, onCancel }) => {
     payment_method: 'cash',
   });
   const [errors, setErrors] = useState({});
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const userId = user?.user_id || authUser?.user_id;
+        if (userId) {
+          const response = await categoriesAPI.getAll({ user_id: userId });
+          if (response.data.success) {
+            setCategories(response.data.data);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
+    };
+    fetchCategories();
+  }, [user, authUser]);
 
   useEffect(() => {
     if (transaction) {
-      const transactionDate = new Date(transaction.date).toISOString().split('T')[0];
+      // Extract date components using UTC methods to avoid timezone issues
+      const date = new Date(transaction.date);
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
+      const transactionDate = `${year}-${month}-${day}`;
+      
       setFormData({
         user_id: transaction.user_id,
         amount: transaction.amount,
@@ -29,9 +56,19 @@ const TransactionForm = ({ user, transaction, onSave, onCancel }) => {
     }
   }, [transaction]);
 
+  // Filter categories by transaction type
+  const filteredCategories = categories.filter(cat => cat.type === formData.type);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      const newData = { ...prev, [name]: value };
+      // Clear category if type changes
+      if (name === 'type' && prev.type !== value) {
+        newData.category = '';
+      }
+      return newData;
+    });
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
@@ -100,16 +137,33 @@ const TransactionForm = ({ user, transaction, onSave, onCancel }) => {
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="category">Category *</label>
-              <input
-                type="text"
+              <select
                 id="category"
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
                 className={errors.category ? 'error' : ''}
-                placeholder="e.g., Food, Salary, Rent"
                 required
-              />
+                disabled={filteredCategories.length === 0}
+              >
+                {filteredCategories.length > 0 ? (
+                  <>
+                    <option value="">-- Select a category --</option>
+                    {filteredCategories.map((cat) => (
+                      <option key={cat.category_id} value={cat.name}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </>
+                ) : (
+                  <option value="">No {formData.type} categories available</option>
+                )}
+              </select>
+              {filteredCategories.length === 0 && (
+                <small style={{ color: '#856404', fontSize: '12px', display: 'block', marginTop: '5px', fontStyle: 'italic' }}>
+                  ⚠️ No {formData.type} categories found. Please create categories in the <strong>Categories</strong> page first.
+                </small>
+              )}
               {errors.category && <span className="error-text">{errors.category}</span>}
             </div>
 
@@ -177,6 +231,9 @@ const TransactionForm = ({ user, transaction, onSave, onCancel }) => {
 };
 
 export default TransactionForm;
+
+
+
 
 
 

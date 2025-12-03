@@ -9,10 +9,39 @@ const api = axios.create({
   },
 });
 
+// Add request interceptor to attach JWT token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth API
 export const authAPI = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
+  verifyOTP: (data) => api.post('/auth/verify-otp', data),
   getUsers: () => api.get('/auth/users'),
   getUser: (id) => api.get(`/auth/users/${id}`),
   updateUser: (id, userData) => api.put(`/auth/users/${id}`, userData),
@@ -35,6 +64,12 @@ export const budgetsAPI = {
   create: (budgetData) => api.post('/budgets', budgetData),
   update: (id, budgetData) => api.put(`/budgets/${id}`, budgetData),
   delete: (id) => api.delete(`/budgets/${id}`),
+  getWarnings: (params = {}) => api.get('/budgets/warnings', { params }),
+  recalculate: (id) => api.post(`/budgets/${id}/recalculate`),
+  // Monthly Budget API
+  getMonthlyBudget: (monthYear) => api.get(`/budgets/monthly/${monthYear}`),
+  createMonthlyBudget: (budgetData) => api.post('/budgets/monthly', budgetData),
+  deleteMonthlyBudget: (monthYear) => api.delete(`/budgets/monthly/${monthYear}`),
 };
 
 // Goals API

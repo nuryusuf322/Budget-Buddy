@@ -22,7 +22,19 @@ const Navbar = () => {
           {user ? (
             <>
               <Link to="/transactions">Transactions</Link>
-              <span className="navbar-user">Welcome, {user.username}!</span>
+              <Link to="/budgets">Budgets</Link>
+              <Link to="/categories">Categories</Link>
+              {(user.role === 'admin' || user.role === 'manager') && (
+                <Link to="/users">Users</Link>
+              )}
+              <span className="navbar-user">
+                Welcome, {user.username}! 
+                {user.role && user.role !== 'user' && (
+                  <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.8 }}>
+                    ({user.role})
+                  </span>
+                )}
+              </span>
               <button className="btn btn-link" onClick={handleLogout}>
                 Logout
               </button>
@@ -40,6 +52,9 @@ const Navbar = () => {
 };
 
 export default Navbar;
+
+
+
 
 
 

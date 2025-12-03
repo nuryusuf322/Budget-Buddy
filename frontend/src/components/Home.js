@@ -39,15 +39,15 @@ const Home = () => {
         </div>
         <div className="feature-card">
           <h3>📊 Budget Management</h3>
-          <p>Set monthly budgets for different categories and track your spending.</p>
+          <p>Set spending limits by category (e.g., Groceries, Entertainment) and set an overall monthly budget limit. Get automatic warnings when you exceed your budgets.</p>
         </div>
         <div className="feature-card">
-          <h3>🎯 Financial Goals</h3>
-          <p>Set and track your financial goals with target dates and amounts.</p>
+          <h3>🏷️ Category Management</h3>
+          <p>Create and organize your expense and income categories with automatic color coding. Use categories to track and filter your transactions.</p>
         </div>
         <div className="feature-card">
           <h3>📈 Analytics</h3>
-          <p>View your financial data with search, filter, and pagination features.</p>
+          <p>View comprehensive spending insights including total income vs spending, average per transaction, net balance, and track your financial health. Search, filter, and paginate through your transactions.</p>
         </div>
       </div>
     </div>
@@ -55,6 +55,9 @@ const Home = () => {
 };
 
 export default Home;
+
+
+
 
 
 

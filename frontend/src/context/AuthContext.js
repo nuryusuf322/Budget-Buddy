@@ -14,11 +14,13 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pendingEmail, setPendingEmail] = useState(null);
 
   useEffect(() => {
-    // Check if user is stored in localStorage
+    // Check if user and token are stored in localStorage
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    const storedToken = localStorage.getItem('token');
+    if (storedUser && storedToken) {
       setUser(JSON.parse(storedUser));
     }
     setLoading(false);
@@ -28,10 +30,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.login({ email, password });
       if (response.data.success) {
-        const userData = response.data.data;
-        setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
-        return { success: true, data: userData };
+        // Store email for OTP verification
+        setPendingEmail(response.data.email || email);
+        return { success: true, email: response.data.email || email };
       }
       return { success: false, message: response.data.message || 'Login failed' };
     } catch (error) {
@@ -39,6 +40,29 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.response?.data?.message || 'Login failed. Please try again.',
       };
+    }
+  };
+
+  const verifyOTP = async (email, otp) => {
+    try {
+      const response = await authAPI.verifyOTP({ email, otp });
+      if (response.data.success) {
+        const userData = response.data.data;
+        const token = response.data.token;
+        
+        // Store user and token
+        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('token', token);
+        setPendingEmail(null);
+        
+        return { success: true, data: userData };
+      }
+      return { success: false, message: response.data.message || 'OTP verification failed' };
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 
+                          'OTP verification failed. Please try again.';
+      return { success: false, message: errorMessage };
     }
   };
 
@@ -70,11 +94,22 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
+    setPendingEmail(null);
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      register, 
+      verifyOTP,
+      logout, 
+      loading,
+      pendingEmail,
+      setPendingEmail
+    }}>
       {children}
     </AuthContext.Provider>
   );
